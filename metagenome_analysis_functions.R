@@ -507,3 +507,78 @@ exclude_samp_abunds <- function(abunds,exclude_samples){
   
   return(abunds[!(abund_names %in% ex_names),])
 }
+
+plot_importance <- function(results.rf,shared_markers,plot_title){
+  imp.table <- importance(results.rf)
+  top_acc <- names(sort(imp.table[,"MeanDecreaseAccuracy"],decreasing = T)[1:30])
+  top_gini <- names(sort(imp.table[,"MeanDecreaseGini"],decreasing = T)[1:30])
+  
+  ### ACCURACY
+  acc.df <- imp.table[top_acc,]
+  acc.df <- as.data.frame(cbind(name=row.names(acc.df),acc.df))
+  acc.df$MeanDecreaseAccuracy <- as.numeric(as.character(acc.df$MeanDecreaseAccuracy))
+  
+  #acc_plot1 <- dotchart(acc.df[rev(top_acc),"MeanDecreaseAccuracy"],labels=rev(top_acc),xlab="MeanDecreaseAccuracy")
+  acc_plot1 <- ggplot(acc.df,aes(x=MeanDecreaseAccuracy,y=factor(top_acc,levels=rev(top_acc)))) + geom_point(shape=1) + 
+    ylab("") + geom_hline(yintercept = c(factor(top_acc,levels=rev(top_acc))),linetype="dashed",colour="grey") +
+    theme(plot.margin = unit(c(0, 0, 0, 0), "cm")) + ggtitle("")
+  
+  #sub_markers <- shared_markers[which(shared_markers$name %in% top_acc),]
+  sub_results <- results_wcorrection[which(results_wcorrection$name %in% top_acc),c("name","phenotype","fdr")]
+  sub_results$sig <- as.factor(ifelse(sub_results$fdr < cutoff,1,0))
+  sub_results <- sub_results[,c("name","phenotype","sig")]
+  sub_results <- unique(sub_results)
+  sub_results$phenotype <- unlist(lapply(sub_results$phenotype,function(x) get_p_abbrev(x)))
+  for(thing in top_acc[which(!(top_acc %in% sub_results$name))]){
+      data <- cbind(name=rep(thing,7),phenotype=c("RA","CC","LC","CD","OB","T2D","UC"),sig=rep(0,7))
+      sub_results <- rbind(sub_results,data)
+  }
+
+  acc_plot2 <- ggplot(sub_results,aes(x=factor(phenotype,levels=c("RA","CC","LC","CD","OB","T2D","UC")),y=factor(name,levels=rev(top_acc)),fill=sig)) + 
+    geom_tile(colour="darkgrey") + scale_fill_manual(values=c("white","darkgrey")) + xlab("") + ggtitle("") +
+    theme(legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.line.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.y = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+  
+  #plot_grid(acc_plot1,acc_plot2,nrow=1,align = "h")
+  
+  ### GINI
+  gini.df <- imp.table[top_gini,]
+  gini.df <- as.data.frame(cbind(name=row.names(gini.df),gini.df))
+  gini.df$MeanDecreaseGini <- as.numeric(as.character(gini.df$MeanDecreaseGini))
+  
+  #acc_plot1 <- dotchart(acc.df[rev(top_acc),"MeanDecreaseAccuracy"],labels=rev(top_acc),xlab="MeanDecreaseAccuracy")
+  gini_plot1 <- ggplot(gini.df,aes(x=MeanDecreaseGini,y=factor(top_gini,levels=rev(top_gini)))) + geom_point(shape=1) + 
+    ylab("") + geom_hline(yintercept = c(factor(top_gini,levels=rev(top_gini))),linetype="dashed",colour="grey") +
+    theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+  
+  #sub_markers <- shared_markers[which(shared_markers$name %in% top_acc),]
+  sub_results <- results_wcorrection[which(results_wcorrection$name %in% top_gini),c("name","phenotype","fdr")]
+  sub_results$sig <- as.factor(ifelse(sub_results$fdr < cutoff,1,0))
+  sub_results <- sub_results[,c("name","phenotype","sig")]
+  sub_results <- unique(sub_results)
+  sub_results$phenotype <- unlist(lapply(sub_results$phenotype,function(x) get_p_abbrev(x)))
+  for(thing in top_gini[which(!(top_gini %in% sub_results$name))]){
+    data <- cbind(name=rep(thing,7),phenotype=c("RA","CC","LC","CD","OB","T2D","UC"),sig=rep(0,7))
+    sub_results <- rbind(sub_results,data)
+  }
+  
+  gini_plot2 <- ggplot(sub_results,aes(x=factor(phenotype,levels=c("RA","CC","LC","CD","OB","T2D","UC")),y=factor(name,levels=rev(top_gini)),fill=sig)) + 
+    geom_tile(colour="darkgrey") + scale_fill_manual(values=c("white","darkgrey")) + xlab("") +
+    theme(legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.line.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.y = element_blank(),
+          plot.margin = unit(c(0, 0, 0, 0), "cm"))
+  
+  
+  
+  plot <- plot_grid(acc_plot1,acc_plot2,gini_plot1,gini_plot2,nrow = 2,align = "h")
+  final_plot <- ggdraw(plot) + draw_figure_label(plot_title,position = "top")
+  
+  return(final_plot)
+}
